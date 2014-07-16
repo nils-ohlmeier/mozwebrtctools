@@ -1,0 +1,96 @@
+<html>
+<head lang="en">
+  <title>WebRTC offerr</title>
+  <meta charset="UTF-8">
+  <script type="application/javascript" src="socket.io.js"></script>
+  <style>
+  #content{
+    height: 98%;
+    width: 98%;
+  }
+  #localvideo{
+    transform: scale(-1,1);
+  }
+  #remotevideo{
+  }
+  video{
+    display: inline-block;
+    vertical-align: top;
+  }
+  </style>
+</head>
+<body>
+  <div id="content">
+    Preview <video id="localvideo" autoplay="autoplay" width="240"></video>
+    Remote <video id="remotevideo" autoplay="autoplay"></video>
+  </div>
+
+<script type="application/javascript">
+  var socket = null;
+  var pc = null;
+  var offer = null;
+  var lvideo = document.getElementById("localvideo");
+  var rvideo = document.getElementById("remotevideo");
+
+  function socket_answer(data) {
+    console.log("data: " + data);
+    var jsanswer = JSON.parse(data);
+    var answer = new mozRTCSessionDescription(jsanswer.answer);
+
+    pc.onaddstream = function (anEvent) {
+      window.rstream = anEvent.stream;
+      rvideo.src = window.URL.createObjectURL(anEvent.stream);
+      rvideo.play();
+      console.log("playing remote video");
+    };
+
+    pc.setRemoteDescription(answer, function() {
+      console.log("Call is connecting...");
+    }, function() {
+      alert("setRemoteDescription failed");
+    });
+  }
+
+  function socket_clientjoined(data) {
+    console.log("client joined");
+    socket.send(JSON.stringify({"offer": offer}));
+    socket.once("answer", socket_answer);
+  }
+
+  //pc = new mozRTCPeerConnection({iceServers:[{"username":"foo","credential":"bar","url":"turn:10.252.73.224"}]});
+  pc = new mozRTCPeerConnection();
+  navigator.mozGetUserMedia({audio: true, video: true}, function (aStream) {
+    window.lstream = aStream;
+    lvideo.src = window.URL.createObjectURL(aStream);
+    lvideo.play();
+    console.log("playing local video");
+
+    pc.addStream(aStream);
+    pc.createOffer(function (RTCsdp) {
+      pc.setLocalDescription(RTCsdp, function() {
+        offer = RTCsdp;
+        socket = io.connect("10.252.73.224:8080/?room=manual");
+        socket.on("connect", function() {
+          console.log("connected to signaling server");
+        });
+        socket.on("error", function() {
+          console.log("server socket connection failed");
+        });
+        socket.on("connect_failed", function() {
+          console.log("server connection failed");
+        });
+        socket.on("message", socket_answer);
+        socket.once("client_joined", socket_clientjoined);
+      }, function() {
+        alert("setLocalDescription failed");
+      });
+    }, function() {
+      alert("createOffer failed");
+    });
+  }, function(msg) {
+    console.log("gUM failed: ", msg);
+    alert("getUserMedia failed");
+  });
+</script>
+</body>
+</html>
