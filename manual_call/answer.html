@@ -47,9 +47,11 @@
     }
 
     pc.setRemoteDescription(offer, function() {
+      console.log("Inside sRD success callback");
+      console.log("remoteDescription: " + JSON.stringify(pc.remoteDescription));
       pc.createAnswer(function (RTCsdp) {
         pc.setLocalDescription(RTCsdp, function() {
-          socket.send(JSON.stringify({"answer": RTCsdp}));
+          //socket.send(JSON.stringify({"answer": RTCsdp}));
           console.log("Call is connecting...");
         }, function() {
           alert("setLocalDescription failed");
@@ -63,7 +65,7 @@
   }
 
   function socket_numclients(data) {
-    console.log("numclients: " + data);
+    console.log("numclients: " + JSON.stringify(data));
     socket.once("offer", socket_offer);
   }
 
@@ -75,14 +77,24 @@
     lvideo.play();
     console.log("playing local video");
 
-    pc.oniceconnectionstatechange = function() {
+    pc.onicecandidate = function(anEvent) {
+      if (anEvent.candidate) {
+        console.log("Received ICE candidate: " + JSON.stringify(anEvent.candidate));
+      } else {
+        console.log("End of trickle ICE - SDP: " + JSON.stringify(pc.localDescription));
+        socket.send(JSON.stringify({"answer": pc.localDescription}));
+      }
+    };
+
+    pc.oniceconnectionstatechange = function(anEvent) {
       console.log("new ICE connection state is: " + pc.iceConnectionState);
     };
 
     pc.addStream(aStream);
 
     //socket = io.connect("10.252.73.224:8080/?room=manual");
-    socket = io.connect("10.252.25.107:8080/?room=manual");
+    //socket = io.connect("10.252.25.107:8080/?room=manual");
+    socket = io.connect("127.0.0.1:8080/?room=manual");
     socket.on("connect", function() {
       console.log("connected to signaling server");
     });
